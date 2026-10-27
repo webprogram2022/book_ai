@@ -688,7 +688,7 @@ Ekstrak informasi buku ke dalam format JSON yang tepat dengan kunci berikut:
 
 Kembalikan HANYA format JSON murni tanpa markdown formatting tambahan atau pembungkus kode. Jika ada bidang yang tidak ditemukan pada gambar, berikan string kosong "" atau null untuk angka.`;
 
-                const customKey = localStorage.getItem('custom_gemini_api_key') || "AQ.-vkKGv8iMefHJOQ";
+                const customKey = localStorage.getItem('custom_gemini_api_key') || "";
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${customKey}`;
 
                 const payload = {
