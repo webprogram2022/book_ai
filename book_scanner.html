@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pindai Buku AI - Katalog Buku Otomatis</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .scanner-ring {
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+        }
+        @keyframes scan-line {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+        .animate-scan {
+            animation: scan-line 2s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col relative">
+
+    <!-- Screen Locking Login Modal / Overlay -->
+    <div id="loginOverlay" class="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md p-8 rounded-3xl shadow-2xl border border-slate-100 space-y-6">
+            <div class="text-center space-y-2">
+                <div class="inline-flex p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-500/30 mb-1">
+                    <i data-lucide="book-open-check" class="w-8 h-8"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-900 tracking-tight">PindaiBuku AI</h2>
+                <p class="text-xs text-slate-500">Silakan login untuk mengakses katalog & ekstraksi buku</p>
+            </div>
+
+            <!-- Error Message Alert -->
+            <div id="loginError" class="hidden p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium flex items-center space-x-2">
+                <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i>
+                <span id="loginErrorText">Email atau password salah!</span>
+            </div>
+
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Email</label>
+                    <div class="relative">
+                        <i data-lucide="mail" class="w-4 h-4 absolute left-3.5 top-3 text-slate-400"></i>
+                        <input type="email" id="loginEmail" required placeholder="nama@email.com" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Password</label>
+                    <div class="relative">
+                        <i data-lucide="lock" class="w-4 h-4 absolute left-3.5 top-3 text-slate-400"></i>
+                        <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition shadow-lg shadow-blue-500/25 flex items-center justify-center space-x-2">
+                    <i data-lucide="log-in" class="w-4 h-4"></i>
+                    <span>Masuk Akun</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Header / Navbar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20">
+                    <i data-lucide="book-open-check" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-slate-900 leading-tight">PindaiBuku AI</h1>
+                    <p class="text-xs text-slate-500">Ekstraksi Detail Buku Otomatis</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+                <button id="btnSettings" class="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition" title="Pengaturan API Key">
+                    <i data-lucide="key" class="w-5 h-5"></i>
+                </button>
+                <a href="#katalogSection" class="inline-flex items-center space-x-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition">
+                    <i data-lucide="library" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Katalog</span>
+                    <span id="badgeBookCount" class="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                </a>
+                <button id="btnLogout" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" title="Keluar / Logout">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        
+        <!-- Top Section: Scanner & Form Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- Left Column: Camera / Upload Section -->
+            <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-semibold text-slate-900 text-lg flex items-center gap-2">
+                        <i data-lucide="camera" class="w-5 h-5 text-blue-600"></i>
+                        Pindai / Upload Foto
+                    </h2>
+                    <span class="text-xs font-medium text-slate-400">Sampul, Judul, atau Imprint</span>
+                </div>
+
+                <!-- Input Options Tabs -->
+                <div class="flex bg-slate-100 p-1 rounded-xl text-sm font-medium">
+                    <button id="tabUpload" class="flex-1 py-2 rounded-lg bg-white shadow-sm text-blue-600 font-semibold transition text-center flex justify-center items-center gap-2">
+                        <i data-lucide="upload-cloud" class="w-4 h-4"></i> Upload File
+                    </button>
+                    <button id="tabCamera" class="flex-1 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition text-center flex justify-center items-center gap-2">
+                        <i data-lucide="video" class="w-4 h-4"></i> Kamera
+                    </button>
+                </div>
+
+                <!-- File Upload Box -->
+                <div id="uploadBox" class="relative border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center transition cursor-pointer bg-slate-50 hover:bg-blue-50/50 group">
+                    <input type="file" id="fileInput" accept="image/*" class="hidden">
+                    <div class="flex flex-col items-center justify-center space-y-3">
+                        <div class="p-3 bg-white rounded-full shadow-sm text-slate-500 group-hover:text-blue-600 group-hover:scale-110 transition duration-200">
+                            <i data-lucide="image-plus" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700 group-hover:text-blue-600">Klik atau seret foto ke sini</p>
+                            <p class="text-xs text-slate-400 mt-1">Format JPG, PNG, WEBP (Maks 10MB)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Camera Viewport Box -->
+                <div id="cameraBox" class="hidden relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-700 min-h-[260px] flex flex-col justify-center items-center">
+                    <video id="webcamVideo" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+                    <canvas id="snapshotCanvas" class="hidden"></canvas>
+                    
+                    <div id="cameraPlaceholder" class="text-center p-6 text-slate-400 space-y-3">
+                        <i data-lucide="video-off" class="w-10 h-10 mx-auto text-slate-500"></i>
+                        <p class="text-xs">Kamera belum diaktifkan</p>
+                        <button id="btnStartCamera" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition inline-flex items-center gap-1.5 shadow-sm">
+                            <i data-lucide="power" class="w-3.5 h-3.5"></i> Nyalakan Kamera
+                        </button>
+                    </div>
+
+                    <div id="cameraControls" class="absolute bottom-3 left-0 right-0 flex justify-center space-x-3 hidden px-4">
+                        <button id="btnCapture" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs shadow-lg flex items-center gap-2 transition">
+                            <i data-lucide="aperture" class="w-4 h-4"></i> Ambil Foto
+                        </button>
+                        <button id="btnStopCamera" class="px-3 py-2.5 bg-slate-800/80 hover:bg-slate-800 text-white rounded-xl text-xs backdrop-blur-sm transition">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview Area -->
+                <div id="previewContainer" class="hidden relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 group">
+                    <img id="imagePreview" src="" alt="Buku Preview" class="w-full max-h-[320px] object-contain mx-auto">
+                    
+                    <!-- Scanner Animation Overlay when processing -->
+                    <div id="scannerOverlay" class="hidden absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] flex flex-col items-center justify-center text-white">
+                        <div class="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-scan shadow-[0_0_15px_#3b82f6]"></div>
+                        <div class="p-3 bg-slate-900/80 rounded-2xl shadow-xl flex items-center space-x-3 border border-slate-700">
+                            <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-blue-400"></i>
+                            <span class="text-xs font-medium">Menganalisis dengan AI Vision...</span>
+                        </div>
+                    </div>
+
+                    <button id="btnRemoveImage" class="absolute top-3 right-3 p-2 bg-slate-900/70 hover:bg-slate-900 text-white rounded-xl backdrop-blur-md transition shadow-md">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Action Button Process -->
+                <button id="btnProcessAI" disabled class="w-full py-3 px-4 bg-slate-200 text-slate-400 cursor-not-allowed font-semibold rounded-xl transition flex items-center justify-center space-x-2 shadow-sm">
+                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    <span id="btnProcessText">Ekstrak Informasi Buku</span>
+                </button>
+            </div>
+
+            <!-- Right Column: Auto-filled Form -->
+            <div class="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div>
+                        <h2 class="font-semibold text-slate-900 text-lg flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
+                            Detail Informasi Buku
+                        </h2>
+                        <p class="text-xs text-slate-500">Periksa & lengkapi data hasil ekstraksi otomatis</p>
+                    </div>
+
+                    <!-- Status Notification Badge -->
+                    <div id="statusBadge" class="hidden items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                        <span>AI Berhasil Ekstrak</span>
+                    </div>
+                </div>
+
+                <form id="bookForm" class="space-y-4">
+                    <!-- Judul Buku -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Judul Buku <span class="text-red-500">*</span></label>
+                        <input type="text" id="inputTitle" required placeholder="Contoh: Laskar Pelangi" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none">
+                    </div>
+
+                    <!-- Penulis & Penerbit -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Penulis / Pengarang</label>
+                            <input type="text" id="inputAuthor" placeholder="Contoh: Andrea Hirata" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Penerbit</label>
+                            <input type="text" id="inputPublisher" placeholder="Contoh: Bentang Pustaka" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Tahun, ISBN, Jumlah Halaman -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Tahun Terbit</label>
+                            <input type="number" id="inputYear" placeholder="2005" min="1500" max="2099" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">ISBN</label>
+                            <input type="text" id="inputISBN" placeholder="978-979-3062-79-2" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Jml Halaman</label>
+                            <input type="number" id="inputPages" placeholder="529" min="1" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Kategori / Genre -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Kategori / Genre</label>
+                        <input type="text" id="inputGenre" placeholder="Novel, Fiksi, Pengembangan Diri, Sains, dll." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none">
+                    </div>
+
+                    <!-- Ringkasan / Sinopsis -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Ringkasan / Sinopsis</label>
+                        <textarea id="inputSynopsis" rows="3" placeholder="Ringkasan singkat cerita atau alur buku..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition outline-none resize-none"></textarea>
+                    </div>
+
+                    <!-- Actions Form -->
+                    <div class="pt-2 flex items-center justify-end space-x-3">
+                        <button type="button" id="btnResetForm" class="px-4 py-2.5 border border-slate-300 text-slate-600 hover:bg-slate-100 font-medium rounded-xl text-sm transition">
+                            Bersihkan Form
+                        </button>
+                        <button type="submit" id="btnSaveBook" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition shadow-md shadow-blue-500/20 flex items-center gap-2">
+                            <i data-lucide="bookmark-plus" class="w-4 h-4"></i>
+                            <span id="btnSaveText">Simpan ke Katalog</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+
+        <!-- Bottom Section: Book Catalog Collection -->
+        <div id="katalogSection" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                    <h2 class="font-semibold text-slate-900 text-xl flex items-center gap-2">
+                        <i data-lucide="bookshelf" class="w-6 h-6 text-blue-600"></i>
+                        Katalog Buku Saya
+                    </h2>
+                    <p class="text-xs text-slate-500">Daftar koleksi buku tersimpan di peramban</p>
+                </div>
+
+                <!-- Export & Search Controls -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <button id="btnExportJSON" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i> Ekspor JSON
+                    </button>
+                    <button id="btnExportCSV" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
+                        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Ekspor CSV
+                    </button>
+                    <button id="btnClearAll" class="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
+                        <i data-lucide="trash" class="w-3.5 h-3.5"></i> Hapus Semua
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search & Filter Bar -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="relative sm:col-span-2">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-3 text-slate-400"></i>
+                    <input type="text" id="searchQuery" placeholder="Cari berdasarkan judul, penulis, ISBN..." class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <select id="filterGenre" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-700">
+                        <option value="">Semua Kategori/Genre</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Catalog List Table / Grid -->
+            <div class="overflow-x-auto rounded-xl border border-slate-200">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+                            <th class="py-3 px-4">Buku</th>
+                            <th class="py-3 px-4">Penerbit & Tahun</th>
+                            <th class="py-3 px-4">ISBN</th>
+                            <th class="py-3 px-4">Kategori</th>
+                            <th class="py-3 px-4 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="catalogTableBody" class="divide-y divide-slate-100 text-slate-700">
+                        <!-- Table rows populated dynamically -->
+                    </tbody>
+                </table>
+
+                <!-- Empty State -->
+                <div id="emptyCatalogState" class="p-10 text-center space-y-3">
+                    <i data-lucide="book-open" class="w-12 h-12 text-slate-300 mx-auto"></i>
+                    <p class="text-sm font-medium text-slate-500">Belum ada buku tersimpan di katalog.</p>
+                    <p class="text-xs text-slate-400">Gunakan pindaian AI di atas untuk menambahkan buku pertama Anda!</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Settings API Key -->
+    <div id="modalSettings" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-slate-900 text-lg flex items-center gap-2">
+                    <i data-lucide="key" class="w-5 h-5 text-blue-600"></i> Pengaturan Gemini API Key
+                </h3>
+                <button id="btnCloseSettings" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+                Aplikasi ini dapat menggunakan API Key otomatis bawaan lingkungan. Jika Anda memiliki API Key kustom Gemini sendiri, Anda bisa memasukkannya di bawah ini.
+            </p>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Gemini API Key (Opsional)</label>
+                <input type="password" id="inputApiKey" placeholder="AIzaSy..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button id="btnSaveApiKey" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition">
+                    Simpan Pengaturan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detail Ringkasan Buku -->
+    <div id="modalDetail" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 id="detailModalTitle" class="font-bold text-slate-900 text-lg">Judul Buku</h3>
+                <button id="btnCloseDetail" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="text-xs space-y-2 text-slate-600">
+                <p><span class="font-semibold text-slate-800">Penulis:</span> <span id="detailAuthor">-</span></p>
+                <p><span class="font-semibold text-slate-800">Penerbit:</span> <span id="detailPublisher">-</span> (<span id="detailYear">-</span>)</p>
+                <p><span class="font-semibold text-slate-800">ISBN:</span> <span id="detailISBN">-</span></p>
+                <p><span class="font-semibold text-slate-800">Kategori:</span> <span id="detailGenre">-</span> | <span id="detailPages">-</span> Hal.</p>
+                <div class="mt-3">
+                    <p class="font-semibold text-slate-800 mb-1">Sinopsis / Ringkasan:</p>
+                    <p id="detailSynopsis" class="p-3 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 leading-relaxed italic"></p>
+                </div>
+            </div>
+            <div class="flex justify-end pt-2">
+                <button id="btnDismissDetail" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Toast Alert Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 hidden max-w-sm px-4 py-3 rounded-2xl shadow-lg border text-xs font-medium flex items-center space-x-3 transition transform duration-300">
+        <i id="toastIcon" data-lucide="info" class="w-5 h-5 flex-shrink-0"></i>
+        <span id="toastMessage">Pesan Notifikasi</span>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Authentication Credentials
+        const VALID_EMAIL = "zulfikriblogger@gmail.com";
+        const VALID_PASSWORD = "fikri12345";
+
+        // Auth Elements
+        const loginOverlay = document.getElementById('loginOverlay');
+        const loginForm = document.getElementById('loginForm');
+        const loginEmail = document.getElementById('loginEmail');
+        const loginPassword = document.getElementById('loginPassword');
+        const loginError = document.getElementById('loginError');
+        const btnLogout = document.getElementById('btnLogout');
+
+        // Check authentication status
+        function checkAuth() {
+            const isAuthenticated = sessionStorage.getItem('isLoggedIn');
+            if (isAuthenticated === 'true') {
+                loginOverlay.classList.add('hidden');
+            } else {
+                loginOverlay.classList.remove('hidden');
+            }
+        }
+
+        // Login Handler
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = loginEmail.value.trim();
+            const password = loginPassword.value;
+
+            if (email === VALID_EMAIL && password === VALID_PASSWORD) {
+                sessionStorage.setItem('isLoggedIn', 'true');
+                loginError.classList.add('hidden');
+                loginOverlay.classList.add('hidden');
+                loginForm.reset();
+                showToast('Berhasil masuk!', 'success');
+            } else {
+                loginError.classList.remove('hidden');
+            }
+        });
+
+        // Logout Handler
+        btnLogout.addEventListener('click', () => {
+            if (confirm("Apakah Anda yakin ingin keluar?")) {
+                sessionStorage.removeItem('isLoggedIn');
+                checkAuth();
+                showToast('Anda telah keluar dari aplikasi', 'info');
+            }
+        });
+
+        // Store Application Data & State
+        let currentBase64Image = null;
+        let bookCatalog = [];
+        let editingBookId = null;
+        let mediaStream = null;
+
+        // Element Selectors
+        const uploadBox = document.getElementById('uploadBox');
+        const cameraBox = document.getElementById('cameraBox');
+        const previewContainer = document.getElementById('previewContainer');
+        const imagePreview = document.getElementById('imagePreview');
+        const fileInput = document.getElementById('fileInput');
+        const btnProcessAI = document.getElementById('btnProcessAI');
+        const btnProcessText = document.getElementById('btnProcessText');
+        const scannerOverlay = document.getElementById('scannerOverlay');
+        const statusBadge = document.getElementById('statusBadge');
+        const btnRemoveImage = document.getElementById('btnRemoveImage');
+        
+        // Form Inputs
+        const bookForm = document.getElementById('bookForm');
+        const inputTitle = document.getElementById('inputTitle');
+        const inputAuthor = document.getElementById('inputAuthor');
+        const inputPublisher = document.getElementById('inputPublisher');
+        const inputYear = document.getElementById('inputYear');
+        const inputISBN = document.getElementById('inputISBN');
+        const inputPages = document.getElementById('inputPages');
+        const inputGenre = document.getElementById('inputGenre');
+        const inputSynopsis = document.getElementById('inputSynopsis');
+        const btnSaveText = document.getElementById('btnSaveText');
+        const btnResetForm = document.getElementById('btnResetForm');
+
+        // Camera elements
+        const webcamVideo = document.getElementById('webcamVideo');
+        const snapshotCanvas = document.getElementById('snapshotCanvas');
+        const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+        const cameraControls = document.getElementById('cameraControls');
+
+        // Catalog & Search
+        const catalogTableBody = document.getElementById('catalogTableBody');
+        const emptyCatalogState = document.getElementById('emptyCatalogState');
+        const badgeBookCount = document.getElementById('badgeBookCount');
+        const searchQuery = document.getElementById('searchQuery');
+        const filterGenre = document.getElementById('filterGenre');
+
+        // Modals
+        const modalSettings = document.getElementById('modalSettings');
+        const modalDetail = document.getElementById('modalDetail');
+        const inputApiKey = document.getElementById('inputApiKey');
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            checkAuth();
+            loadCatalogFromStorage();
+            
+            // Load custom API key if saved
+            const savedKey = localStorage.getItem('custom_gemini_api_key');
+            if(savedKey) inputApiKey.value = savedKey;
+        });
+
+        // Toast Notification Helper
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMessage.textContent = message;
+            toast.classList.remove('hidden', 'bg-emerald-600', 'bg-red-600', 'bg-slate-800', 'text-white', 'border-emerald-700', 'border-red-700');
+
+            if (type === 'success') {
+                toast.classList.add('bg-emerald-600', 'text-white', 'border-emerald-700');
+                toastIcon.setAttribute('data-lucide', 'check-circle');
+            } else if (type === 'error') {
+                toast.classList.add('bg-red-600', 'text-white', 'border-red-700');
+                toastIcon.setAttribute('data-lucide', 'alert-circle');
+            } else {
+                toast.classList.add('bg-slate-800', 'text-white', 'border-slate-700');
+                toastIcon.setAttribute('data-lucide', 'info');
+            }
+            
+            lucide.createIcons();
+            toast.classList.remove('hidden');
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3500);
+        }
+
+        // --- Tab Switching (Upload vs Camera) ---
+        const tabUpload = document.getElementById('tabUpload');
+        const tabCamera = document.getElementById('tabCamera');
+
+        tabUpload.addEventListener('click', () => {
+            tabUpload.className = "flex-1 py-2 rounded-lg bg-white shadow-sm text-blue-600 font-semibold transition text-center flex justify-center items-center gap-2";
+            tabCamera.className = "flex-1 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition text-center flex justify-center items-center gap-2";
+            uploadBox.classList.remove('hidden');
+            cameraBox.classList.add('hidden');
+            stopCamera();
+        });
+
+        tabCamera.addEventListener('click', () => {
+            tabCamera.className = "flex-1 py-2 rounded-lg bg-white shadow-sm text-blue-600 font-semibold transition text-center flex justify-center items-center gap-2";
+            tabUpload.className = "flex-1 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition text-center flex justify-center items-center gap-2";
+            cameraBox.classList.remove('hidden');
+            uploadBox.classList.add('hidden');
+        });
+
+        // --- File Upload Handling ---
+        uploadBox.addEventListener('click', () => fileInput.click());
+        
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('border-blue-500', 'bg-blue-50');
+        });
+
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('border-blue-500', 'bg-blue-50');
+        });
+
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('border-blue-500', 'bg-blue-50');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleImageFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                handleImageFile(e.target.files[0]);
+            }
+        });
+
+        function handleImageFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showToast('Mohon unggah berkas gambar yang valid', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentBase64Image = e.target.result;
+                imagePreview.src = currentBase64Image;
+                
+                uploadBox.classList.add('hidden');
+                cameraBox.classList.add('hidden');
+                previewContainer.classList.remove('hidden');
+                
+                btnProcessAI.disabled = false;
+                btnProcessAI.className = "w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition flex items-center justify-center space-x-2 shadow-md shadow-blue-500/20";
+            };
+            reader.readAsDataURL(file);
+        }
+
+        btnRemoveImage.addEventListener('click', () => {
+            currentBase64Image = null;
+            imagePreview.src = '';
+            previewContainer.classList.add('hidden');
+            statusBadge.classList.add('hidden');
+            fileInput.value = '';
+
+            if(!cameraBox.classList.contains('hidden')) {
+                // keep camera
+            } else {
+                uploadBox.classList.remove('hidden');
+            }
+
+            btnProcessAI.disabled = true;
+            btnProcessAI.className = "w-full py-3 px-4 bg-slate-200 text-slate-400 cursor-not-allowed font-semibold rounded-xl transition flex items-center justify-center space-x-2 shadow-sm";
+        });
+
+        // --- Camera Handling ---
+        document.getElementById('btnStartCamera').addEventListener('click', async () => {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                webcamVideo.srcObject = mediaStream;
+                webcamVideo.classList.remove('hidden');
+                cameraPlaceholder.classList.add('hidden');
+                cameraControls.classList.remove('hidden');
+            } catch (err) {
+                console.error("Camera error:", err);
+                showToast("Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan.", "error");
+            }
+        });
+
+        function stopCamera() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            webcamVideo.classList.add('hidden');
+            cameraPlaceholder.classList.remove('hidden');
+            cameraControls.classList.add('hidden');
+        }
+
+        document.getElementById('btnStopCamera').addEventListener('click', stopCamera);
+
+        document.getElementById('btnCapture').addEventListener('click', () => {
+            if (!webcamVideo.srcObject) return;
+
+            snapshotCanvas.width = webcamVideo.videoWidth;
+            snapshotCanvas.height = webcamVideo.videoHeight;
+            const ctx = snapshotCanvas.getContext('2d');
+            ctx.drawImage(webcamVideo, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
+
+            currentBase64Image = snapshotCanvas.toDataURL('image/jpeg');
+            imagePreview.src = currentBase64Image;
+
+            stopCamera();
+            cameraBox.classList.add('hidden');
+            previewContainer.classList.remove('hidden');
+
+            btnProcessAI.disabled = false;
+            btnProcessAI.className = "w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition flex items-center justify-center space-x-2 shadow-md shadow-blue-500/20";
+        });
+
+        // --- AI Extraction Process using Gemini API ---
+        btnProcessAI.addEventListener('click', async () => {
+            if (!currentBase64Image) {
+                showToast('Pilih atau ambil foto buku terlebih dahulu', 'error');
+                return;
+            }
+
+            // Show Loading UI
+            scannerOverlay.classList.remove('hidden');
+            btnProcessAI.disabled = true;
+            btnProcessText.textContent = 'Memproses...';
+
+            try {
+                // Get Base64 raw string without data prefix
+                const base64Data = currentBase64Image.split(',')[1];
+                const mimeType = currentBase64Image.split(';')[0].split(':')[1] || 'image/jpeg';
+
+                const promptText = `Analisislah gambar buku ini (dapat berupa sampul depan, halaman judul, atau halaman imprint/hak cipta).
+Ekstrak informasi buku ke dalam format JSON yang tepat dengan kunci berikut:
+- title: string (Judul buku utama)
+- author: string (Nama pengarang/penulis)
+- publisher: string (Nama penerbit)
+- publication_year: number (Tahun terbit jika ada)
+- isbn: string (Nomor ISBN jika ada)
+- genre: string (Kategori atau genre buku)
+- synopsis: string (Ringkasan/deskripsi singkat isi atau konteks buku dalam bahasa Indonesia)
+- page_count: number (Jumlah halaman jika terdeteksi di gambar, jika tidak beri null)
+
+Kembalikan HANYA format JSON murni tanpa markdown formatting tambahan atau pembungkus kode. Jika ada bidang yang tidak ditemukan pada gambar, berikan string kosong "" atau null untuk angka.`;
+
+                const customKey = localStorage.getItem('custom_gemini_api_key') || "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${customKey}`;
+
+                const payload = {
+                    contents: [{
+                        parts: [
+                            { text: promptText },
+                            {
+                                inlineData: {
+                                    mimeType: mimeType,
+                                    data: base64Data
+                                }
+                            }
+                        ]
+                    }],
+                    generationConfig: {
+                        responseMimeType: "application/json"
+                    }
+                };
+
+                // Retry logic with backoff
+                let response = null;
+                let delay = 1000;
+                for (let i = 0; i < 3; i++) {
+                    try {
+                        const res = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (res.ok) {
+                            response = await res.json();
+                            break;
+                        }
+                    } catch (e) {
+                        console.warn(`Percobaan API ${i + 1} gagal, mencoba lagi...`);
+                    }
+                    await new Promise(r => setTimeout(r, delay));
+                    delay *= 2;
+                }
+
+                if (!response) {
+                    throw new Error("Gagal terhubung dengan layanan AI Gemini. Periksa koneksi atau API Key Anda.");
+                }
+
+                const jsonText = response.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!jsonText) throw new Error("Format respons dari AI tidak valid.");
+
+                const extractedData = JSON.parse(jsonText);
+
+                // Auto-fill form fields
+                inputTitle.value = extractedData.title || '';
+                inputAuthor.value = extractedData.author || '';
+                inputPublisher.value = extractedData.publisher || '';
+                inputYear.value = extractedData.publication_year || '';
+                inputISBN.value = extractedData.isbn || '';
+                inputPages.value = extractedData.page_count || '';
+                inputGenre.value = extractedData.genre || '';
+                inputSynopsis.value = extractedData.synopsis || '';
+
+                statusBadge.classList.remove('hidden');
+                statusBadge.classList.add('flex');
+                showToast('Data buku berhasil diekstrak oleh AI!', 'success');
+
+            } catch (err) {
+                console.error("AI Error:", err);
+                showToast(err.message || 'Gagal menganalisis gambar buku', 'error');
+            } finally {
+                scannerOverlay.classList.add('hidden');
+                btnProcessAI.disabled = false;
+                btnProcessText.textContent = 'Ekstrak Informasi Buku';
+            }
+        });
+
+        // --- Save Book & Form Submission ---
+        bookForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const title = inputTitle.value.trim();
+            if (!title) {
+                showToast('Judul buku wajib diisi', 'error');
+                return;
+            }
+
+            const bookData = {
+                id: editingBookId || Date.now().toString(),
+                title: title,
+                author: inputAuthor.value.trim(),
+                publisher: inputPublisher.value.trim(),
+                year: inputYear.value,
+                isbn: inputISBN.value.trim(),
+                pages: inputPages.value,
+                genre: inputGenre.value.trim(),
+                synopsis: inputSynopsis.value.trim(),
+                coverImage: currentBase64Image || null,
+                createdAt: new Date().toISOString()
+            };
+
+            if (editingBookId) {
+                const index = bookCatalog.findIndex(b => b.id === editingBookId);
+                if (index !== -1) bookCatalog[index] = bookData;
+                showToast('Perubahan buku berhasil disimpan', 'success');
+            } else {
+                bookCatalog.unshift(bookData);
+                showToast('Buku baru ditambahkan ke katalog', 'success');
+            }
+
+            saveCatalogToStorage();
+            resetForm();
+            renderCatalog();
+        });
+
+        btnResetForm.addEventListener('click', resetForm);
+
+        function resetForm() {
+            bookForm.reset();
+            editingBookId = null;
+            btnSaveText.textContent = 'Simpan ke Katalog';
+            statusBadge.classList.add('hidden');
+        }
+
+        // --- Storage & Catalog Management ---
+        function saveCatalogToStorage() {
+            try {
+                localStorage.setItem('pindaibuku_catalog', JSON.stringify(bookCatalog));
+            } catch (e) {
+                console.error("Gagal menyimpan ke localStorage:", e);
+                showToast("Penyimpanan lokal penuh, beberapa gambar mungkin tidak tersimpan.", "error");
+            }
+        }
+
+        function loadCatalogFromStorage() {
+            const data = localStorage.getItem('pindaibuku_catalog');
+            if (data) {
+                try {
+                    bookCatalog = JSON.parse(data);
+                } catch (e) {
+                    bookCatalog = [];
+                }
+            }
+            renderCatalog();
+        }
+
+        function renderCatalog() {
+            catalogTableBody.innerHTML = '';
+            
+            const query = searchQuery.value.toLowerCase().trim();
+            const selectedGenre = filterGenre.value;
+
+            // Update Filter Genre Dropdown options
+            const genres = [...new Set(bookCatalog.map(b => b.genre).filter(Boolean))];
+            filterGenre.innerHTML = '<option value="">Semua Kategori/Genre</option>' + 
+                genres.map(g => `<option value="${g}" ${g === selectedGenre ? 'selected' : ''}>${g}</option>`).join('');
+
+            const filteredBooks = bookCatalog.filter(book => {
+                const matchesQuery = !query || 
+                    (book.title && book.title.toLowerCase().includes(query)) ||
+                    (book.author && book.author.toLowerCase().includes(query)) ||
+                    (book.isbn && book.isbn.toLowerCase().includes(query));
+                
+                const matchesGenre = !selectedGenre || book.genre === selectedGenre;
+
+                return matchesQuery && matchesGenre;
+            });
+
+            badgeBookCount.textContent = bookCatalog.length;
+
+            if (filteredBooks.length === 0) {
+                emptyCatalogState.classList.remove('hidden');
+            } else {
+                emptyCatalogState.classList.add('hidden');
+
+                filteredBooks.forEach(book => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-50/80 transition";
+                    tr.innerHTML = `
+                        <td class="py-3 px-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0 flex items-center justify-center">
+                                    ${book.coverImage 
+                                        ? `<img src="${book.coverImage}" class="w-full h-full object-cover">`
+                                        : `<i data-lucide="book" class="w-5 h-5 text-slate-400"></i>`}
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-slate-900 leading-snug line-clamp-1">${escapeHtml(book.title)}</h4>
+                                    <p class="text-xs text-slate-500">${escapeHtml(book.author || 'Penulis tidak diketahui')}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3 px-4 text-xs text-slate-600">
+                            <div>${escapeHtml(book.publisher || '-')}</div>
+                            <div class="text-slate-400">${book.year || ''}</div>
+                        </td>
+                        <td class="py-3 px-4 text-xs font-mono text-slate-600">
+                            ${escapeHtml(book.isbn || '-')}
+                        </td>
+                        <td class="py-3 px-4">
+                            ${book.genre ? `<span class="inline-block px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-medium">${escapeHtml(book.genre)}</span>` : '<span class="text-xs text-slate-400">-</span>'}
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            <div class="flex items-center justify-center space-x-2">
+                                <button onclick="viewDetail('${book.id}')" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Lihat Detail">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="editBook('${book.id}')" class="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Edit">
+                                    <i data-lucide="edit" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="deleteBook('${book.id}')" class="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Hapus">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    catalogTableBody.appendChild(tr);
+                });
+            }
+
+            lucide.createIcons();
+        }
+
+        searchQuery.addEventListener('input', renderCatalog);
+        filterGenre.addEventListener('change', renderCatalog);
+
+        // Edit, View & Delete Global Scope Functions
+        window.viewDetail = (id) => {
+            const book = bookCatalog.find(b => b.id === id);
+            if (!book) return;
+
+            document.getElementById('detailModalTitle').textContent = book.title;
+            document.getElementById('detailAuthor').textContent = book.author || '-';
+            document.getElementById('detailPublisher').textContent = book.publisher || '-';
+            document.getElementById('detailYear').textContent = book.year || '-';
+            document.getElementById('detailISBN').textContent = book.isbn || '-';
+            document.getElementById('detailGenre').textContent = book.genre || '-';
+            document.getElementById('detailPages').textContent = book.pages || '-';
+            document.getElementById('detailSynopsis').textContent = book.synopsis || 'Tidak ada ringkasan tersedia.';
+
+            modalDetail.classList.remove('hidden');
+        };
+
+        window.editBook = (id) => {
+            const book = bookCatalog.find(b => b.id === id);
+            if (!book) return;
+
+            editingBookId = book.id;
+            inputTitle.value = book.title || '';
+            inputAuthor.value = book.author || '';
+            inputPublisher.value = book.publisher || '';
+            inputYear.value = book.year || '';
+            inputISBN.value = book.isbn || '';
+            inputPages.value = book.pages || '';
+            inputGenre.value = book.genre || '';
+            inputSynopsis.value = book.synopsis || '';
+
+            if (book.coverImage) {
+                currentBase64Image = book.coverImage;
+                imagePreview.src = currentBase64Image;
+                uploadBox.classList.add('hidden');
+                cameraBox.classList.add('hidden');
+                previewContainer.classList.remove('hidden');
+            }
+
+            btnSaveText.textContent = 'Simpan Perubahan';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        window.deleteBook = (id) => {
+            if (confirm("Apakah Anda yakin ingin menghapus buku ini dari katalog?")) {
+                bookCatalog = bookCatalog.filter(b => b.id !== id);
+                saveCatalogToStorage();
+                renderCatalog();
+                showToast('Buku telah dihapus', 'info');
+            }
+        };
+
+        document.getElementById('btnClearAll').addEventListener('click', () => {
+            if (bookCatalog.length === 0) return;
+            if (confirm("Apakah Anda yakin ingin menghapus SELURUH koleksi katalog buku?")) {
+                bookCatalog = [];
+                saveCatalogToStorage();
+                renderCatalog();
+                showToast('Katalog berhasil dikosongkan', 'info');
+            }
+        });
+
+        // --- Export CSV & JSON ---
+        document.getElementById('btnExportJSON').addEventListener('click', () => {
+            if (bookCatalog.length === 0) {
+                showToast('Katalog masih kosong untuk diekspor', 'error');
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bookCatalog, null, 2));
+            downloadFile(dataStr, 'katalog_buku.json');
+        });
+
+        document.getElementById('btnExportCSV').addEventListener('click', () => {
+            if (bookCatalog.length === 0) {
+                showToast('Katalog masih kosong untuk diekspor', 'error');
+                return;
+            }
+
+            const headers = ["Judul", "Penulis", "Penerbit", "Tahun Terbit", "ISBN", "Jumlah Halaman", "Kategori", "Sinopsis"];
+            const rows = bookCatalog.map(b => [
+                `"${(b.title || '').replace(/"/g, '""')}"`,
+                `"${(b.author || '').replace(/"/g, '""')}"`,
+                `"${(b.publisher || '').replace(/"/g, '""')}"`,
+                `"${b.year || ''}"`,
+                `"${(b.isbn || '').replace(/"/g, '""')}"`,
+                `"${b.pages || ''}"`,
+                `"${(b.genre || '').replace(/"/g, '""')}"`,
+                `"${(b.synopsis || '').replace(/"/g, '""')}"`
+            ]);
+
+            const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+            downloadFile(csvContent, 'katalog_buku.csv');
+        });
+
+        function downloadFile(content, filename) {
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", content);
+            downloadAnchor.setAttribute("download", filename);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        // --- Settings Modal ---
+        document.getElementById('btnSettings').addEventListener('click', () => modalSettings.classList.remove('hidden'));
+        document.getElementById('btnCloseSettings').addEventListener('click', () => modalSettings.classList.add('hidden'));
+        document.getElementById('btnSaveApiKey').addEventListener('click', () => {
+            const key = inputApiKey.value.trim();
+            if (key) {
+                localStorage.setItem('custom_gemini_api_key', key);
+                showToast('Custom API Key disimpan', 'success');
+            } else {
+                localStorage.removeItem('custom_gemini_api_key');
+                showToast('Menggunakan API Key bawaan', 'info');
+            }
+            modalSettings.classList.add('hidden');
+        });
+
+        // Close Detail Modal
+        document.getElementById('btnCloseDetail').addEventListener('click', () => modalDetail.classList.add('hidden'));
+        document.getElementById('btnDismissDetail').addEventListener('click', () => modalDetail.classList.add('hidden'));
+
+        // Utility Helper
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
