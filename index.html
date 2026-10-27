@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -283,8 +284,8 @@
                     <button id="btnExportJSON" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i> Ekspor JSON
                     </button>
-                    <button id="btnExportCSV" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
-                        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Ekspor CSV
+                    <button id="btnExportExcel" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
+                        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Ekspor Excel
                     </button>
                     <button id="btnClearAll" class="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
                         <i data-lucide="trash" class="w-3.5 h-3.5"></i> Hapus Semua
@@ -687,7 +688,7 @@ Ekstrak informasi buku ke dalam format JSON yang tepat dengan kunci berikut:
 
 Kembalikan HANYA format JSON murni tanpa markdown formatting tambahan atau pembungkus kode. Jika ada bidang yang tidak ditemukan pada gambar, berikan string kosong "" atau null untuk angka.`;
 
-                const customKey = localStorage.getItem('custom_gemini_api_key') || "";
+                const customKey = localStorage.getItem('custom_gemini_api_key') || "AQ.Ab8RN6Lvo34RV5JYLraZNur23BKEnuk0jiH-vkKGv8iMefHJOQ";
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${customKey}`;
 
                 const payload = {
@@ -982,26 +983,45 @@ Kembalikan HANYA format JSON murni tanpa markdown formatting tambahan atau pembu
             downloadFile(dataStr, 'katalog_buku.json');
         });
 
-        document.getElementById('btnExportCSV').addEventListener('click', () => {
+        document.getElementById('btnExportExcel').addEventListener('click', () => {
             if (bookCatalog.length === 0) {
                 showToast('Katalog masih kosong untuk diekspor', 'error');
                 return;
             }
 
-            const headers = ["Judul", "Penulis", "Penerbit", "Tahun Terbit", "ISBN", "Jumlah Halaman", "Kategori", "Sinopsis"];
-            const rows = bookCatalog.map(b => [
-                `"${(b.title || '').replace(/"/g, '""')}"`,
-                `"${(b.author || '').replace(/"/g, '""')}"`,
-                `"${(b.publisher || '').replace(/"/g, '""')}"`,
-                `"${b.year || ''}"`,
-                `"${(b.isbn || '').replace(/"/g, '""')}"`,
-                `"${b.pages || ''}"`,
-                `"${(b.genre || '').replace(/"/g, '""')}"`,
-                `"${(b.synopsis || '').replace(/"/g, '""')}"`
-            ]);
+            // 1. Pemetaan data dari bookCatalog ke format object untuk Excel
+            const dataToExport = bookCatalog.map(b => ({
+                "Judul": b.title || '',
+                "Penulis": b.author || '',
+                "Penerbit": b.publisher || '',
+                "Tahun Terbit": b.year || '',
+                "ISBN": b.isbn || '',
+                "Jumlah Halaman": b.pages || '',
+                "Kategori": b.genre || '',
+                "Sinopsis": b.synopsis || ''
+            }));
 
-            const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-            downloadFile(csvContent, 'katalog_buku.csv');
+            // 2. Buat worksheet dari data JSON
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+            // 3. Atur lebar kolom otomatis agar rapi (Opsional)
+            worksheet['!cols'] = [
+                { wch: 30 }, // Judul
+                { wch: 20 }, // Penulis
+                { wch: 20 }, // Penerbit
+                { wch: 12 }, // Tahun Terbit
+                { wch: 18 }, // ISBN
+                { wch: 15 }, // Jumlah Halaman
+                { wch: 15 }, // Kategori
+                { wch: 40 }  // Sinopsis
+            ];
+
+            // 4. Buat workbook baru dan tambahkan worksheet
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Katalog Buku");
+
+            // 5. Unduh file Excel
+            XLSX.writeFile(workbook, 'katalog_buku.xlsx');
         });
 
         function downloadFile(content, filename) {
